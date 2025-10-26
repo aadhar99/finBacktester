@@ -9,6 +9,7 @@ pandas-ta>=0.3.14b  # Alternative if TA-Lib fails
 
 # API and data fetching
 requests>=2.31.0
+yfinance>=0.2.28  # Real market data from Yahoo Finance (PRIMARY)
 pykiteconnect>=4.2.0  # Zerodha's official Python client
 
 # Visualization (optional but useful for analysis)
