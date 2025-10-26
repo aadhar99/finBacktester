@@ -1,0 +1,35 @@
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# Technical indicators and data analysis
+ta-lib>=0.4.0  # Technical Analysis Library (may require system install)
+pandas-ta>=0.3.14b  # Alternative if TA-Lib fails
+
+# API and data fetching
+requests>=2.31.0
+pykiteconnect>=4.2.0  # Zerodha's official Python client
+
+# Visualization (optional but useful for analysis)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Type checking and code quality
+mypy>=1.5.0
+black>=23.7.0
+flake8>=6.1.0
+
+# Configuration management
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Logging and monitoring
+loguru>=0.7.0
+
+# Performance optimization
+numba>=0.57.0  # JIT compilation for numerical functions
