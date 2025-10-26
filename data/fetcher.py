@@ -1,12 +1,13 @@
 """
 Data fetcher module for retrieving market data.
 
-This module handles data fetching from various sources:
-- Zerodha Kite API for live/historical data
-- CSV files for backtesting
-- Synthetic data generation for testing
+This module handles data fetching from various sources (in priority order):
+1. yfinance API for real NSE historical data (PRIMARY)
+2. Zerodha Kite API for live/historical data
+3. CSV files for backtesting
+4. Synthetic data generation (FALLBACK ONLY)
 
-For MVP, includes methods to generate realistic synthetic data.
+Uses real market data by default for realistic backtesting.
 """
 
 import pandas as pd
@@ -17,6 +18,15 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to import yfinance
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+    logger.info("yfinance is available - will use real market data")
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    logger.warning("yfinance not available - install with: pip install yfinance")
 
 
 class DataFetcher:
@@ -64,6 +74,12 @@ class DataFetcher:
         """
         Fetch historical OHLCV data for a symbol.
 
+        Data source priority:
+        1. Cache (if available)
+        2. yfinance API (real NSE data) - PRIMARY
+        3. Zerodha Kite API (if credentials provided)
+        4. Synthetic data (fallback only)
+
         Args:
             symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
             start_date: Start date (YYYY-MM-DD)
@@ -77,8 +93,20 @@ class DataFetcher:
         cache_file = self.data_dir / f"{symbol}_{start_date}_{end_date}_{interval}.csv"
 
         if cache_file.exists():
-            logger.info(f"Loading cached data for {symbol} from {cache_file}")
+            logger.info(f"✓ Loading cached data for {symbol}")
             return pd.read_csv(cache_file, parse_dates=['date'], index_col='date')
+
+        # Try yfinance first (REAL MARKET DATA)
+        if YFINANCE_AVAILABLE:
+            try:
+                data = self._fetch_from_yfinance(symbol, start_date, end_date, interval)
+                if data is not None and len(data) > 0:
+                    # Cache the data
+                    data.to_csv(cache_file)
+                    logger.info(f"✓ Fetched REAL data for {symbol} from yfinance ({len(data)} days)")
+                    return data
+            except Exception as e:
+                logger.warning(f"yfinance fetch failed for {symbol}: {e}")
 
         # Try fetching from Kite API
         if self.kite:
@@ -86,18 +114,137 @@ class DataFetcher:
                 data = self._fetch_from_kite(symbol, start_date, end_date, interval)
                 # Cache the data
                 data.to_csv(cache_file)
-                logger.info(f"Fetched and cached data for {symbol}")
+                logger.info(f"✓ Fetched data for {symbol} from Kite API")
                 return data
             except Exception as e:
-                logger.error(f"Failed to fetch from Kite API: {e}")
+                logger.error(f"Kite API fetch failed for {symbol}: {e}")
 
-        # Fallback: Generate synthetic data
-        logger.warning(f"Generating synthetic data for {symbol}")
+        # Fallback: Generate synthetic data (ONLY IF NOTHING ELSE WORKS)
+        logger.warning(f"⚠️  Using SYNTHETIC data for {symbol} - install yfinance for real data!")
         data = self._generate_synthetic_data(symbol, start_date, end_date)
 
         # Cache synthetic data
         data.to_csv(cache_file)
         return data
+
+    def _fetch_from_yfinance(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        interval: str = "day"
+    ) -> pd.DataFrame:
+        """
+        Fetch real market data from yfinance (Yahoo Finance).
+
+        For NSE stocks, appends .NS to symbol (e.g., RELIANCE.NS).
+        For Nifty index, uses ^NSEI.
+
+        Args:
+            symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+            interval: Data interval ('1d' for day, '1h' for hour, etc.)
+
+        Returns:
+            DataFrame with OHLCV data
+        """
+        # Convert symbol to yfinance format
+        if symbol == "NIFTY50" or symbol == "NIFTY":
+            yf_symbol = "^NSEI"  # Nifty 50 index
+        elif symbol == "BANKNIFTY":
+            yf_symbol = "^NSEBANK"  # Bank Nifty index
+        elif symbol.startswith("^"):
+            yf_symbol = symbol  # Already in index format
+        else:
+            yf_symbol = f"{symbol}.NS"  # NSE stocks
+
+        # Convert interval to yfinance format
+        interval_map = {
+            "day": "1d",
+            "hour": "1h",
+            "minute": "1m"
+        }
+        yf_interval = interval_map.get(interval, "1d")
+
+        logger.info(f"Fetching {yf_symbol} from yfinance ({start_date} to {end_date})...")
+
+        # Fetch data using yfinance
+        ticker = yf.Ticker(yf_symbol)
+        df = ticker.history(
+            start=start_date,
+            end=end_date,
+            interval=yf_interval,
+            auto_adjust=False  # Keep raw prices
+        )
+
+        if df.empty:
+            logger.warning(f"No data returned from yfinance for {yf_symbol}")
+            return None
+
+        # Standardize column names to lowercase
+        df.columns = df.columns.str.lower()
+
+        # Rename columns to match our format
+        column_map = {
+            'open': 'open',
+            'high': 'high',
+            'low': 'low',
+            'close': 'close',
+            'volume': 'volume'
+        }
+
+        # Select and rename only the columns we need
+        df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+
+        # Ensure index is named 'date'
+        df.index.name = 'date'
+
+        # Remove timezone info if present
+        if df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+
+        # Data quality checks
+        df = self._validate_ohlcv_data(df, symbol)
+
+        return df
+
+    def _validate_ohlcv_data(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+        """
+        Validate and clean OHLCV data.
+
+        Args:
+            df: DataFrame with OHLCV data
+            symbol: Stock symbol (for logging)
+
+        Returns:
+            Cleaned DataFrame
+        """
+        original_len = len(df)
+
+        # Remove rows with NaN values
+        df = df.dropna()
+
+        # Remove rows with zero or negative prices
+        df = df[(df['open'] > 0) & (df['high'] > 0) & (df['low'] > 0) & (df['close'] > 0)]
+
+        # Validate OHLC relationships
+        df = df[df['high'] >= df['low']]
+        df = df[df['high'] >= df['open']]
+        df = df[df['high'] >= df['close']]
+        df = df[df['low'] <= df['open']]
+        df = df[df['low'] <= df['close']]
+
+        # Remove extreme outliers (>50% daily change)
+        returns = df['close'].pct_change()
+        df = df[abs(returns) < 0.5]
+
+        cleaned_len = len(df)
+        if cleaned_len < original_len:
+            removed = original_len - cleaned_len
+            logger.info(f"Cleaned {symbol}: removed {removed} invalid rows ({original_len} -> {cleaned_len})")
+
+        return df
 
     def _fetch_from_kite(
         self,
