@@ -167,6 +167,26 @@ class UniverseConfig:
 
 
 @dataclass
+class IntradayConfig:
+    """Intraday backtesting configuration."""
+    candle_interval: str = "15m"
+    session_start: str = "09:15"    # NSE market open
+    session_end: str = "15:30"      # NSE market close
+    nifty_lot_size: int = 25        # Nifty futures lot size
+    force_close_time: str = "15:15" # Force close 15 min before market close
+    default_lookback_days: int = 60 # yfinance 15m limit
+    brokerage_per_order: float = 40.0  # Zerodha futures flat fee per order
+
+
+@dataclass
+class DatabaseConfig:
+    """Database connection configuration."""
+    url: str = "postgresql://trading_user:trading_password_dev@localhost:5432/trading_system"
+    min_pool_size: int = 5
+    max_pool_size: int = 20
+
+
+@dataclass
 class SystemConfig:
     """Master configuration combining all sub-configs."""
 
@@ -177,6 +197,8 @@ class SystemConfig:
     agents: AgentConfig = field(default_factory=AgentConfig)
     regime: RegimeConfig = field(default_factory=RegimeConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    intraday: IntradayConfig = field(default_factory=IntradayConfig)
 
     # Logging
     log_level: str = "INFO"

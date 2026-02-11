@@ -1,0 +1,93 @@
+# =============================================================================
+# Docker Compose for Local Development
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL + TimescaleDB
+  database:
+    image: timescale/timescaledb:latest-pg15
+    container_name: trading_db
+    environment:
+      POSTGRES_DB: trading_system
+      POSTGRES_USER: trading_user
+      POSTGRES_PASSWORD: trading_password_dev
+      # Enable TimescaleDB extension automatically
+      TIMESCALEDB_TELEMETRY: 'off'
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/schema:/docker-entrypoint-initdb.d  # Auto-run SQL on first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading_user -d trading_system"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trading_network
+
+  # Trading Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading_app
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://trading_user:trading_password_dev@database:5432/trading_system
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      # Add your LLM API keys here or use .env file
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    env_file:
+      - .env  # Load from .env file
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    ports:
+      - "8000:8000"  # API server
+    networks:
+      - trading_network
+    restart: unless-stopped
+
+  # Streamlit Dashboard (optional)
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading_dashboard
+    depends_on:
+      - database
+      - app
+    environment:
+      DATABASE_URL: postgresql://trading_user:trading_password_dev@database:5432/trading_system
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    networks:
+      - trading_network
+    restart: unless-stopped
+
+  # Redis (optional - for Celery task queue)
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - trading_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  trading_network:
+    driver: bridge

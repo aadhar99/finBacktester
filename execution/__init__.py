@@ -3,6 +3,7 @@
 from .position import Position, PositionTracker, Trade
 from .portfolio import Portfolio, PortfolioState
 from .backtest_engine import BacktestEngine
+from .intraday_engine import IntradayBacktestEngine, IntradayBacktestResult, IntradayTrade
 
 __all__ = [
     "Position",
@@ -11,4 +12,7 @@ __all__ = [
     "Portfolio",
     "PortfolioState",
     "BacktestEngine",
+    "IntradayBacktestEngine",
+    "IntradayBacktestResult",
+    "IntradayTrade",
 ]

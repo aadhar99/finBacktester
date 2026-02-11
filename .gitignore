@@ -36,6 +36,7 @@ ENV/
 
 # Data
 data/historical/*.csv
+data/*.db
 *.h5
 *.hdf5
 *.parquet

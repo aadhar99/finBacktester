@@ -8,7 +8,7 @@ import logging
 from datetime import datetime
 
 from config import get_config, update_config
-from agents import MomentumAgent, ReversionAgent, EnsembleAgent
+from agents import MomentumAgent, ReversionAgent, EnsembleAgent, NiftyShortAgent
 from execution import BacktestEngine
 from metrics import MetricsCalculator
 
@@ -153,6 +153,42 @@ def run_parameter_optimization():
     logger.info("  - Risk management parameters")
 
 
+def run_intraday_backtest():
+    """Run intraday Nifty short strategy backtest."""
+    logger.info("=" * 70)
+    logger.info("RUNNING INTRADAY NIFTY SHORT BACKTEST")
+    logger.info("=" * 70)
+
+    from data.fetcher import DataFetcher
+    from execution.intraday_engine import IntradayBacktestEngine
+    from utils.sqlite_store import SQLiteStore
+
+    config = get_config()
+    fetcher = DataFetcher()
+
+    print("\nFetching 15-min Nifty data (last 60 days)...")
+    intraday_data = fetcher.fetch_intraday_data("NIFTY50", days_back=60, interval="15m")
+    print(f"Loaded {len(intraday_data)} candles")
+
+    agent = NiftyShortAgent(
+        min_first_candle_range=75.0,
+        entry_candle_index=3,
+        swing_high_lookback=5,
+        lot_size=config.intraday.nifty_lot_size
+    )
+
+    store = SQLiteStore()
+    engine = IntradayBacktestEngine(agent=agent, store=store)
+    result = engine.run(intraday_data, symbol="NIFTY50")
+
+    print(f"\nResults: {result.total_trades} trades, "
+          f"P&L={result.total_pnl_points:+.0f} pts (Rs.{result.total_pnl_rupees:+,.0f}), "
+          f"Win rate={result.win_rate:.1f}%, Sharpe={result.sharpe_ratio:.2f}")
+    print(f"Run ID: {result.run_id} | View in dashboard: streamlit run dashboard/app.py")
+
+    return result
+
+
 def main():
     """Main entry point."""
     print("\n" + "=" * 70)
@@ -163,8 +199,9 @@ def main():
     print("2. Run MVP Backtest (full 10 stocks, 1 year)")
     print("3. Run Parameter Optimization")
     print("4. Exit")
+    print("5. Run Intraday Backtest (Nifty short strategy)")
 
-    choice = input("\nSelect option (1-4): ").strip()
+    choice = input("\nSelect option (1-5): ").strip()
 
     if choice == "1":
         metrics, engine = run_simple_backtest()
@@ -174,6 +211,9 @@ def main():
         run_parameter_optimization()
     elif choice == "4":
         print("Exiting...")
+        return
+    elif choice == "5":
+        run_intraday_backtest()
         return
     else:
         print("Invalid choice")
