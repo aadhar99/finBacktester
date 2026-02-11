@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import json
+import os
 from pathlib import Path
 
 # Add parent directory to path
@@ -631,9 +632,34 @@ def page_audit_log(store: SQLiteStore, run_id):
     )
 
 
+# ── Password Gate ──
+
+def check_password():
+    """Return True if password is correct or not configured."""
+    password = os.environ.get("APP_PASSWORD")
+    if not password:
+        return True  # No password set — open access
+
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.markdown("<h2 style='text-align: center;'>Strategy Backtester</h2>", unsafe_allow_html=True)
+    entered = st.text_input("Password", type="password", key="pw_input")
+    if st.button("Login", type="primary"):
+        if entered == password:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect password")
+    return False
+
+
 # ── Main ──
 
 def main():
+    if not check_password():
+        return
+
     store = get_store()
     run_id, page = render_sidebar(store)
 
