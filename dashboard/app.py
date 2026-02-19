@@ -240,7 +240,10 @@ def page_strategy_comparison(store: SQLiteStore):
     st.markdown("---")
 
     runs_df = store.get_runs()
-    runs_df = runs_df[runs_df['strategy_name'] == 'NiftyShortAgent'] if not runs_df.empty else runs_df
+    
+    # Filter for NiftyShortAgent strategy if not filtered already
+    if not runs_df.empty and 'strategy_name' in runs_df.columns:
+        runs_df = runs_df[runs_df['strategy_name'] == 'NiftyShortAgent']
 
     if runs_df.empty:
         st.info("No backtest runs found. Use the sidebar to run a backtest.")

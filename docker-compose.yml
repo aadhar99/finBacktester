@@ -1,93 +1,77 @@
-# =============================================================================
-# Docker Compose for Local Development
-# =============================================================================
-
 version: '3.8'
 
 services:
-  # PostgreSQL + TimescaleDB
-  database:
-    image: timescale/timescaledb:latest-pg15
-    container_name: trading_db
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
     environment:
-      POSTGRES_DB: trading_system
-      POSTGRES_USER: trading_user
-      POSTGRES_PASSWORD: trading_password_dev
-      # Enable TimescaleDB extension automatically
-      TIMESCALEDB_TELEMETRY: 'off'
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: smart_money
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./config/schema:/docker-entrypoint-initdb.d  # Auto-run SQL on first start
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trading_user -d trading_system"]
+      test: ["CMD-SHELL", "pg_isready -U trader"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - trading_network
 
-  # Trading Application
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: trading_app
-    depends_on:
-      database:
-        condition: service_healthy
+  # Python Backend + Scheduler
+  backend:
+    build: .
+    command: python3 scripts/scheduler_daemon.py
     environment:
-      DATABASE_URL: postgresql://trading_user:trading_password_dev@database:5432/trading_system
-      ENVIRONMENT: development
-      LOG_LEVEL: DEBUG
-      # Add your LLM API keys here or use .env file
-      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-    env_file:
-      - .env  # Load from .env file
+      DATABASE_URL: postgresql://trader:${DB_PASSWORD:-changeme}@postgres:5432/smart_money
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM: ${EMAIL_FROM}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_TO: ${EMAIL_TO}
+      TELEGRAM_ENABLED: ${TELEGRAM_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./logs:/app/logs
-      - ./data:/app/data
-    ports:
-      - "8000:8000"  # API server
-    networks:
-      - trading_network
+      - ./paper_trading:/app/paper_trading
     restart: unless-stopped
 
-  # Streamlit Dashboard (optional)
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: trading_dashboard
-    depends_on:
-      - database
-      - app
+  # API Server
+  api:
+    build: .
+    command: gunicorn api.server:app --bind 0.0.0.0:8000 --workers 2
     environment:
-      DATABASE_URL: postgresql://trading_user:trading_password_dev@database:5432/trading_system
-    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+      DATABASE_URL: postgresql://trader:${DB_PASSWORD:-changeme}@postgres:5432/smart_money
+      PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "8501:8501"
-    networks:
-      - trading_network
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./paper_trading:/app/paper_trading
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Redis (optional - for Celery task queue)
-  redis:
-    image: redis:7-alpine
-    container_name: trading_redis
+  # Next.js Dashboard (optional - can use Vercel instead)
+  dashboard:
+    build: ./dashboard-nextjs
     ports:
-      - "6379:6379"
-    networks:
-      - trading_network
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8000/api
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
-
-networks:
-  trading_network:
-    driver: bridge
