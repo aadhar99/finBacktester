@@ -40,6 +40,24 @@ def get_db():
     return _db
 
 
+@app.route('/', methods=['GET'])
+def index():
+    """API root endpoint with documentation."""
+    return jsonify({
+        'service': 'Smart Money Trading API',
+        'version': '1.0.0',
+        'status': 'online',
+        'endpoints': {
+            '/health': 'Health check and database status',
+            '/api/portfolio': 'Current portfolio state',
+            '/api/stats': 'Database statistics',
+            '/api/deals': 'Recent bulk deals',
+            '/api/signals': 'Recent trading signals'
+        },
+        'documentation': 'https://github.com/aadhar99/finBacktester'
+    }), 200
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint for cloud providers."""
