@@ -33,7 +33,6 @@ import subprocess
 import signal
 from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 
@@ -59,11 +58,6 @@ class TradingScheduler:
     def __init__(self):
         """Initialize scheduler with job store and executors."""
 
-        # Job store (SQLite) - persists jobs across restarts
-        jobstores = {
-            'default': SQLAlchemyJobStore(url='sqlite:///data/scheduler.db')
-        }
-
         # Thread pool executor
         executors = {
             'default': ThreadPoolExecutor(max_workers=2)
@@ -76,8 +70,8 @@ class TradingScheduler:
             'misfire_grace_time': 300  # 5 minute grace period
         }
 
+        # Use in-memory job store for cloud deployment (no persistence needed)
         self.scheduler = BlockingScheduler(
-            jobstores=jobstores,
             executors=executors,
             job_defaults=job_defaults
         )
