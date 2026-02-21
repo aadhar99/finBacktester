@@ -1,0 +1,167 @@
+{
+  "backtest_date": "2026-02-21T23:44:14.012507",
+  "thresholds": {
+    "severe": 3.0,
+    "high": 2.0,
+    "moderate": 1.5
+  },
+  "penalties": {
+    "severe": 30,
+    "high": 20,
+    "moderate": 10
+  },
+  "old_system": {
+    "system": "OLD SYSTEM",
+    "total_trades": 3,
+    "winners": 1,
+    "losers": 2,
+    "win_rate_pct": 33.33333333333333,
+    "avg_return_pct": -1.9825357349701231,
+    "total_return_pct": -5.947607204910369,
+    "avg_winner_pct": 2.6510235291422286,
+    "avg_loser_pct": -4.299315367026299,
+    "profit_factor": 0.30830763770835656
+  },
+  "new_system": {
+    "system": "NEW SYSTEM",
+    "total_trades": 1,
+    "winners": 1,
+    "losers": 0,
+    "win_rate_pct": 100.0,
+    "avg_return_pct": 2.6510235291422286,
+    "total_return_pct": 2.6510235291422286,
+    "avg_winner_pct": 2.6510235291422286,
+    "avg_loser_pct": 0,
+    "profit_factor": Infinity
+  },
+  "filtered_out": [
+    {
+      "symbol": "GVPIL",
+      "entry_date": "2026-02-16",
+      "entry_price": 501.9,
+      "original_confidence": 97.0,
+      "final_confidence": 67.0,
+      "volume_spike": 7.487140754235189,
+      "performance": {
+        "success": true,
+        "entry_price": 501.9,
+        "exit_price": 484.70001220703125,
+        "exit_date": "2026-02-20",
+        "pnl_pct": -3.4269750533908607,
+        "max_gain_pct": 9.992027852753292,
+        "max_loss_pct": -10.6296099236962,
+        "hit_stop_loss": true,
+        "hit_take_profit": false,
+        "is_winner": false
+      },
+      "risk_level": "SEVERE",
+      "reason": "SEVERE pump risk (7.5x volume)"
+    },
+    {
+      "symbol": "ENGINERSIN",
+      "entry_date": "2026-02-16",
+      "entry_price": 226.62,
+      "original_confidence": 95.19999999999999,
+      "final_confidence": 65.19999999999999,
+      "volume_spike": 8.279232927742001,
+      "performance": {
+        "success": true,
+        "entry_price": 226.62,
+        "exit_price": 214.89999389648438,
+        "exit_date": "2026-02-20",
+        "pnl_pct": -5.171655680661737,
+        "max_gain_pct": 4.262641770054219,
+        "max_loss_pct": -7.554496513988177,
+        "hit_stop_loss": true,
+        "hit_take_profit": false,
+        "is_winner": false
+      },
+      "risk_level": "SEVERE",
+      "reason": "SEVERE pump risk (8.3x volume)"
+    }
+  ],
+  "old_system_trades": [
+    {
+      "symbol": "APEX",
+      "entry_date": "2026-02-16",
+      "entry_price": 426.25,
+      "confidence": 97.0,
+      "volume_spike": 0.7133064624765133,
+      "performance": {
+        "success": true,
+        "entry_price": 426.25,
+        "exit_price": 437.54998779296875,
+        "exit_date": "2026-02-20",
+        "pnl_pct": 2.6510235291422286,
+        "max_gain_pct": 9.313785855021994,
+        "max_loss_pct": -3.343108504398827,
+        "hit_stop_loss": false,
+        "hit_take_profit": false,
+        "is_winner": true
+      },
+      "risk_level": "LOW"
+    },
+    {
+      "symbol": "GVPIL",
+      "entry_date": "2026-02-16",
+      "entry_price": 501.9,
+      "confidence": 97.0,
+      "volume_spike": 7.487140754235189,
+      "performance": {
+        "success": true,
+        "entry_price": 501.9,
+        "exit_price": 484.70001220703125,
+        "exit_date": "2026-02-20",
+        "pnl_pct": -3.4269750533908607,
+        "max_gain_pct": 9.992027852753292,
+        "max_loss_pct": -10.6296099236962,
+        "hit_stop_loss": true,
+        "hit_take_profit": false,
+        "is_winner": false
+      },
+      "risk_level": "SEVERE"
+    },
+    {
+      "symbol": "ENGINERSIN",
+      "entry_date": "2026-02-16",
+      "entry_price": 226.62,
+      "confidence": 95.19999999999999,
+      "volume_spike": 8.279232927742001,
+      "performance": {
+        "success": true,
+        "entry_price": 226.62,
+        "exit_price": 214.89999389648438,
+        "exit_date": "2026-02-20",
+        "pnl_pct": -5.171655680661737,
+        "max_gain_pct": 4.262641770054219,
+        "max_loss_pct": -7.554496513988177,
+        "hit_stop_loss": true,
+        "hit_take_profit": false,
+        "is_winner": false
+      },
+      "risk_level": "SEVERE"
+    }
+  ],
+  "new_system_trades": [
+    {
+      "symbol": "APEX",
+      "entry_date": "2026-02-16",
+      "entry_price": 426.25,
+      "confidence": 97.0,
+      "volume_spike": 0.7133064624765133,
+      "performance": {
+        "success": true,
+        "entry_price": 426.25,
+        "exit_price": 437.54998779296875,
+        "exit_date": "2026-02-20",
+        "pnl_pct": 2.6510235291422286,
+        "max_gain_pct": 9.313785855021994,
+        "max_loss_pct": -3.343108504398827,
+        "hit_stop_loss": false,
+        "hit_take_profit": false,
+        "is_winner": true
+      },
+      "risk_level": "LOW"
+    }
+  ]
+}
