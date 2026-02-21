@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["python310"]
+
+[start]
+cmd = "cd dashboard && python3 -m http.server $PORT"

@@ -310,11 +310,54 @@ class SmartMoneyTradingAgent(BaseAgent):
             # Calculate combined confidence
             combined_confidence = (opp.confidence * 0.6 + validation.score * 0.4)
 
-            # Get current price
+            # Get current price and volume
             if opp.symbol in data.index:
                 current_price = data.loc[opp.symbol, 'close']
+                current_volume = data.loc[opp.symbol, 'volume'] if 'volume' in data.columns else 0
             else:
                 logger.warning(f"  ⚠️  {opp.symbol}: No price data, skipping")
+                continue
+
+            # ANTI-PUMP & DUMP: Check for volume spikes (fetch historical volume)
+            volume_penalty = 0
+            volume_spike_ratio = 1.0
+            try:
+                import yfinance as yf
+                symbol_yf = f"{opp.symbol}.NS"
+                ticker = yf.Ticker(symbol_yf)
+                hist = ticker.history(period='30d')  # 30 days of history
+
+                if not hist.empty and len(hist) >= 5:
+                    # Get average volume of last 5-10 days (excluding today)
+                    avg_volume = hist['Volume'].iloc[-10:-1].mean() if len(hist) >= 10 else hist['Volume'].iloc[:-1].mean()
+
+                    # Current volume from today or data
+                    latest_volume = float(hist['Volume'].iloc[-1]) if current_volume == 0 else current_volume
+
+                    if avg_volume > 0:
+                        volume_spike_ratio = latest_volume / avg_volume
+
+                        # Apply penalties for volume spikes (pump & dump indicator)
+                        if volume_spike_ratio > 3.0:
+                            volume_penalty = 30  # Severe penalty for 3x+ spike
+                            logger.warning(f"  🚨 {opp.symbol}: SEVERE volume spike ({volume_spike_ratio:.1f}x) - HIGH pump risk")
+                        elif volume_spike_ratio > 2.0:
+                            volume_penalty = 20  # Major penalty for 2x+ spike
+                            logger.warning(f"  ⚠️  {opp.symbol}: HIGH volume spike ({volume_spike_ratio:.1f}x) - pump risk")
+                        elif volume_spike_ratio > 1.5:
+                            volume_penalty = 10  # Minor penalty for 1.5x+ spike
+                            logger.info(f"  ⚠️  {opp.symbol}: Elevated volume ({volume_spike_ratio:.1f}x)")
+                        else:
+                            logger.info(f"  ✅ {opp.symbol}: Normal volume ({volume_spike_ratio:.1f}x avg)")
+            except Exception as e:
+                logger.debug(f"  Could not check volume for {opp.symbol}: {e}")
+
+            # Apply volume penalty to confidence
+            combined_confidence = max(combined_confidence - volume_penalty, 0)
+
+            # Skip if confidence drops below minimum threshold after penalty
+            if combined_confidence < 70:
+                logger.info(f"  ❌ {opp.symbol}: Confidence too low after volume penalty ({combined_confidence:.0f}%)")
                 continue
 
             # Calculate position size based on confidence
@@ -353,7 +396,10 @@ class SmartMoneyTradingAgent(BaseAgent):
                     'pattern': opp.patterns[0].type if opp.patterns else None,
                     'net_value': opp.net_value,
                     'llm_recommendation': opp.llm_insights.recommendation if opp.llm_insights else None,
-                    'technical_indicators': validation.indicators
+                    'technical_indicators': validation.indicators,
+                    'volume_spike_ratio': volume_spike_ratio,
+                    'volume_penalty': volume_penalty,
+                    'final_confidence': combined_confidence
                 }
             )
 
@@ -361,7 +407,8 @@ class SmartMoneyTradingAgent(BaseAgent):
 
             logger.info(f"  ✅ {opp.symbol}: SIGNAL GENERATED")
             logger.info(f"      Smart Money: {opp.confidence:.0f}% | Technical: {validation.score:.0f}%")
-            logger.info(f"      Combined: {combined_confidence:.0f}% | Size: {position_size} shares")
+            logger.info(f"      Volume Spike: {volume_spike_ratio:.1f}x | Penalty: -{volume_penalty}")
+            logger.info(f"      Final Confidence: {combined_confidence:.0f}% | Size: {position_size} shares")
             logger.info(f"      Price: ₹{current_price:.2f} | SL: ₹{stop_loss:.2f} | TP: ₹{take_profit:.2f}")
 
         logger.info(f"  🎯 Generated {len(signals)} validated trading signals")

@@ -4,8 +4,8 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python3 -m http.server 8080",
-    "healthcheckPath": "/",
+    "startCommand": "python3 -m http.server $PORT",
+    "healthcheckPath": "/index.html",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE"
   }
