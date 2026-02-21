@@ -78,9 +78,10 @@ def health():
 
 @app.route('/api/portfolio', methods=['GET'])
 def get_portfolio():
-    """Get current paper trading portfolio state."""
+    """Get current paper trading portfolio state with real-time prices."""
     try:
         from datetime import datetime, date
+        import yfinance as yf
 
         portfolio_file = 'paper_trading/portfolio_state.json'
 
@@ -88,11 +89,68 @@ def get_portfolio():
             with open(portfolio_file, 'r') as f:
                 data = json.load(f)
 
-            # Recalculate days_held dynamically for all positions
-            for position in data.get('positions', []):
-                if position.get('entry_date'):
-                    entry_date = datetime.strptime(position['entry_date'], '%Y-%m-%d').date()
-                    position['days_held'] = (date.today() - entry_date).days
+            positions = data.get('positions', [])
+
+            # Fetch real-time prices for all positions
+            symbols = [pos['symbol'] + '.NS' for pos in positions]
+            if symbols:
+                try:
+                    # Batch fetch prices for efficiency
+                    tickers = yf.Tickers(' '.join(symbols))
+
+                    total_position_value = 0
+                    total_unrealized_pnl = 0
+
+                    for position in positions:
+                        symbol_yf = position['symbol'] + '.NS'
+
+                        try:
+                            # Get current price
+                            ticker = tickers.tickers[symbol_yf]
+                            hist = ticker.history(period='1d')
+
+                            if not hist.empty:
+                                current_price = float(hist['Close'].iloc[-1])
+                                position['current_price'] = current_price
+
+                                # Recalculate P&L
+                                entry_price = position['entry_price']
+                                quantity = position['quantity']
+
+                                if position['signal_type'] == 'BUY':
+                                    unrealized_pnl = (current_price - entry_price) * quantity
+                                else:  # SELL/SHORT
+                                    unrealized_pnl = (entry_price - current_price) * quantity
+
+                                unrealized_pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
+
+                                position['unrealized_pnl'] = round(unrealized_pnl, 2)
+                                position['unrealized_pnl_pct'] = round(unrealized_pnl_pct, 2)
+
+                                # Track position value and total P&L
+                                position_value = current_price * quantity
+                                total_position_value += position_value
+                                total_unrealized_pnl += unrealized_pnl
+                        except Exception as e:
+                            # If price fetch fails, keep original values
+                            pass
+
+                        # Recalculate days_held
+                        if position.get('entry_date'):
+                            entry_date = datetime.strptime(position['entry_date'], '%Y-%m-%d').date()
+                            position['days_held'] = (date.today() - entry_date).days
+
+                    # Update portfolio-level metrics
+                    cash = data.get('cash', 0)
+                    initial_capital = data.get('initial_capital', 1000000)
+
+                    data['current_value'] = cash + total_position_value
+                    data['total_pnl'] = round(total_unrealized_pnl, 2)
+                    data['total_return_pct'] = round(((data['current_value'] - initial_capital) / initial_capital) * 100, 2)
+
+                except Exception as e:
+                    # If batch fetch fails, return data as-is
+                    pass
 
             return jsonify(data), 200
         else:
