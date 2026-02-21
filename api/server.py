@@ -91,78 +91,62 @@ def get_portfolio():
 
             positions = data.get('positions', [])
 
-            # Fetch real-time prices for all positions
-            symbols = [pos['symbol'] + '.NS' for pos in positions]
-            price_fetch_errors = []
+            # Fetch real-time prices for all positions (individual fetch for reliability)
+            total_position_value = 0
+            total_unrealized_pnl = 0
 
-            if symbols:
+            for position in positions:
+                symbol_yf = position['symbol'] + '.NS'
+
                 try:
-                    # Batch fetch prices for efficiency
-                    import logging
-                    logging.basicConfig(level=logging.INFO)
-                    logger = logging.getLogger(__name__)
-                    logger.info(f"Fetching prices for: {symbols}")
+                    # Fetch price individually for each position
+                    ticker = yf.Ticker(symbol_yf)
+                    hist = ticker.history(period='5d')  # Get 5 days to handle weekends
 
-                    tickers = yf.Tickers(' '.join(symbols))
+                    if not hist.empty:
+                        current_price = float(hist['Close'].iloc[-1])
+                        position['current_price'] = round(current_price, 2)
 
-                    total_position_value = 0
-                    total_unrealized_pnl = 0
+                        # Recalculate P&L
+                        entry_price = position['entry_price']
+                        quantity = position['quantity']
 
-                    for position in positions:
-                        symbol_yf = position['symbol'] + '.NS'
+                        if position['signal_type'] == 'BUY':
+                            unrealized_pnl = (current_price - entry_price) * quantity
+                        else:  # SELL/SHORT
+                            unrealized_pnl = (entry_price - current_price) * quantity
 
-                        try:
-                            # Get current price
-                            ticker = tickers.tickers[symbol_yf]
-                            hist = ticker.history(period='1d')
+                        unrealized_pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
 
-                            if not hist.empty:
-                                current_price = float(hist['Close'].iloc[-1])
-                                position['current_price'] = current_price
+                        position['unrealized_pnl'] = round(unrealized_pnl, 2)
+                        position['unrealized_pnl_pct'] = round(unrealized_pnl_pct, 2)
 
-                                # Recalculate P&L
-                                entry_price = position['entry_price']
-                                quantity = position['quantity']
-
-                                if position['signal_type'] == 'BUY':
-                                    unrealized_pnl = (current_price - entry_price) * quantity
-                                else:  # SELL/SHORT
-                                    unrealized_pnl = (entry_price - current_price) * quantity
-
-                                unrealized_pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
-
-                                position['unrealized_pnl'] = round(unrealized_pnl, 2)
-                                position['unrealized_pnl_pct'] = round(unrealized_pnl_pct, 2)
-
-                                # Track position value and total P&L
-                                position_value = current_price * quantity
-                                total_position_value += position_value
-                                total_unrealized_pnl += unrealized_pnl
-                        except Exception as e:
-                            # If price fetch fails, keep original values
-                            pass
-
-                        # Recalculate days_held
-                        if position.get('entry_date'):
-                            entry_date = datetime.strptime(position['entry_date'], '%Y-%m-%d').date()
-                            position['days_held'] = (date.today() - entry_date).days
-
-                    # Update portfolio-level metrics
-                    cash = data.get('cash', 0)
-                    initial_capital = data.get('initial_capital', 1000000)
-
-                    data['current_value'] = cash + total_position_value
-                    data['total_pnl'] = round(total_unrealized_pnl, 2)
-                    data['total_return_pct'] = round(((data['current_value'] - initial_capital) / initial_capital) * 100, 2)
+                        # Track position value and total P&L
+                        position_value = current_price * quantity
+                        total_position_value += position_value
+                        total_unrealized_pnl += unrealized_pnl
+                    else:
+                        # If no hist data, use entry price as fallback
+                        position_value = position['entry_price'] * position['quantity']
+                        total_position_value += position_value
 
                 except Exception as e:
-                    # If batch fetch fails, log error and return data as-is
-                    price_fetch_errors.append(f"Batch fetch error: {str(e)}")
-                    logger.error(f"Failed to fetch prices: {e}")
+                    # If price fetch fails, use entry price as fallback
+                    position_value = position['entry_price'] * position['quantity']
+                    total_position_value += position_value
 
-            # Add debug info
-            if price_fetch_errors:
-                data['_debug'] = {'price_fetch_errors': price_fetch_errors}
+                # Recalculate days_held
+                if position.get('entry_date'):
+                    entry_date = datetime.strptime(position['entry_date'], '%Y-%m-%d').date()
+                    position['days_held'] = (date.today() - entry_date).days
+
+            # Update portfolio-level metrics
+            cash = data.get('cash', 0)
+            initial_capital = data.get('initial_capital', 1000000)
+
+            data['current_value'] = round(cash + total_position_value, 2)
+            data['total_pnl'] = round(total_unrealized_pnl, 2)
+            data['total_return_pct'] = round(((data['current_value'] - initial_capital) / initial_capital) * 100, 2)
 
             return jsonify(data), 200
         else:
