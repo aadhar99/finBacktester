@@ -19,12 +19,17 @@ from flask_cors import CORS
 import os
 import json
 import sys
+import logging
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from utils.database_adapter import DatabaseAdapter
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Next.js frontend
@@ -100,12 +105,15 @@ def get_portfolio():
 
                 try:
                     # Fetch price individually for each position
+                    logger.info(f"Fetching price for {symbol_yf}")
                     ticker = yf.Ticker(symbol_yf)
                     hist = ticker.history(period='5d')  # Get 5 days to handle weekends
+                    logger.info(f"{symbol_yf}: Got {len(hist)} data points")
 
                     if not hist.empty:
                         current_price = float(hist['Close'].iloc[-1])
                         position['current_price'] = round(current_price, 2)
+                        logger.info(f"{symbol_yf}: Current price = ₹{current_price:.2f}")
 
                         # Recalculate P&L
                         entry_price = position['entry_price']
@@ -127,11 +135,13 @@ def get_portfolio():
                         total_unrealized_pnl += unrealized_pnl
                     else:
                         # If no hist data, use entry price as fallback
+                        logger.warning(f"{symbol_yf}: No history data available, using entry price")
                         position_value = position['entry_price'] * position['quantity']
                         total_position_value += position_value
 
                 except Exception as e:
                     # If price fetch fails, use entry price as fallback
+                    logger.error(f"{symbol_yf}: Error fetching price - {str(e)}")
                     position_value = position['entry_price'] * position['quantity']
                     total_position_value += position_value
 
@@ -283,6 +293,54 @@ def get_signals():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/debug/yfinance', methods=['GET'])
+def debug_yfinance():
+    """Debug endpoint to test yfinance data fetching."""
+    try:
+        import yfinance as yf
+        from datetime import datetime
+
+        test_symbol = request.args.get('symbol', 'APEX')
+        symbol_yf = test_symbol + '.NS'
+
+        result = {
+            'symbol': symbol_yf,
+            'timestamp': datetime.now().isoformat(),
+            'yfinance_version': yf.__version__ if hasattr(yf, '__version__') else 'unknown'
+        }
+
+        try:
+            ticker = yf.Ticker(symbol_yf)
+            hist = ticker.history(period='5d')
+
+            if not hist.empty:
+                result['success'] = True
+                result['data_points'] = len(hist)
+                result['latest_date'] = str(hist.index[-1])
+                result['latest_close'] = float(hist['Close'].iloc[-1])
+                result['data_sample'] = {
+                    'dates': [str(d) for d in hist.index[-3:]],
+                    'closes': [float(c) for c in hist['Close'].iloc[-3:]]
+                }
+            else:
+                result['success'] = False
+                result['error'] = 'No data returned from yfinance'
+
+        except Exception as e:
+            result['success'] = False
+            result['error'] = str(e)
+            result['error_type'] = type(e).__name__
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
 
 
 if __name__ == '__main__':
