@@ -1,0 +1,26 @@
+{
+  "analysis_date": "2026-02-21T23:58:38.801882",
+  "portfolio_file": "paper_trading/portfolio_state.json",
+  "metrics": {
+    "total_value": 1000000.0,
+    "exposure_pct": 43.294433000000005,
+    "cash_reserve_pct": 56.705567,
+    "position_count": 3,
+    "volatility": 29.675058415825,
+    "sharpe_ratio": 0.776221564945026,
+    "sortino_ratio": 1.2653591053507833,
+    "max_drawdown_pct": -7.787766547670009,
+    "value_at_risk_95": -29680.732698491924,
+    "largest_position_pct": 14.535124999999999,
+    "sector_exposure": {
+      "Consumer Defensive": 14.535124999999999,
+      "Industrials": 28.759308
+    },
+    "risk_score": 51.250855519781254,
+    "risk_alerts": []
+  },
+  "rebalancing": {
+    "needed": false,
+    "reasons": []
+  }
+}
