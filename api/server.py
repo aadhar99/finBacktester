@@ -80,11 +80,20 @@ def health():
 def get_portfolio():
     """Get current paper trading portfolio state."""
     try:
+        from datetime import datetime, date
+
         portfolio_file = 'paper_trading/portfolio_state.json'
 
         if os.path.exists(portfolio_file):
             with open(portfolio_file, 'r') as f:
                 data = json.load(f)
+
+            # Recalculate days_held dynamically for all positions
+            for position in data.get('positions', []):
+                if position.get('entry_date'):
+                    entry_date = datetime.strptime(position['entry_date'], '%Y-%m-%d').date()
+                    position['days_held'] = (date.today() - entry_date).days
+
             return jsonify(data), 200
         else:
             # Return empty portfolio
