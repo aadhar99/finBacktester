@@ -93,9 +93,16 @@ def get_portfolio():
 
             # Fetch real-time prices for all positions
             symbols = [pos['symbol'] + '.NS' for pos in positions]
+            price_fetch_errors = []
+
             if symbols:
                 try:
                     # Batch fetch prices for efficiency
+                    import logging
+                    logging.basicConfig(level=logging.INFO)
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Fetching prices for: {symbols}")
+
                     tickers = yf.Tickers(' '.join(symbols))
 
                     total_position_value = 0
@@ -149,8 +156,13 @@ def get_portfolio():
                     data['total_return_pct'] = round(((data['current_value'] - initial_capital) / initial_capital) * 100, 2)
 
                 except Exception as e:
-                    # If batch fetch fails, return data as-is
-                    pass
+                    # If batch fetch fails, log error and return data as-is
+                    price_fetch_errors.append(f"Batch fetch error: {str(e)}")
+                    logger.error(f"Failed to fetch prices: {e}")
+
+            # Add debug info
+            if price_fetch_errors:
+                data['_debug'] = {'price_fetch_errors': price_fetch_errors}
 
             return jsonify(data), 200
         else:
