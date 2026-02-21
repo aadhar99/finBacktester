@@ -219,20 +219,41 @@ class DailyScanPipeline:
             logger.info("  No opportunities to generate signals from")
             return []
 
-        # Get current prices for each symbol
-        # In production, would fetch from live market data
+        # Get current prices for each symbol from live market data
         symbols = [opp.symbol for opp in report.opportunities]
 
-        # Mock price data for now
-        mock_data = pd.DataFrame({
-            'symbol': symbols,
-            'close': [150.0] * len(symbols),  # Would be real prices
-            'volume': [1000000] * len(symbols)
-        }).set_index('symbol')
+        # Fetch real prices from yfinance
+        import yfinance as yf
+        price_data = {}
+        for symbol in symbols:
+            try:
+                yf_symbol = f"{symbol}.NS"
+                ticker = yf.Ticker(yf_symbol)
+                hist = ticker.history(period='5d')  # Get 5 days to handle weekends
+
+                if not hist.empty:
+                    close_price = float(hist['Close'].iloc[-1])
+                    volume = float(hist['Volume'].iloc[-1]) if hist['Volume'].iloc[-1] > 0 else 1000000
+                    price_data[symbol] = {'close': close_price, 'volume': volume}
+                    logger.info(f"  {symbol}: ₹{close_price:.2f}")
+                else:
+                    logger.warning(f"  ⚠️  {symbol}: No price data available")
+            except Exception as e:
+                logger.warning(f"  ⚠️  {symbol}: Error fetching price - {e}")
+
+        if not price_data:
+            logger.warning("  ⚠️  No valid price data fetched, skipping signal generation")
+            return []
+
+        # Build DataFrame from real prices
+        market_data = pd.DataFrame([
+            {'symbol': symbol, 'close': data['close'], 'volume': data['volume']}
+            for symbol, data in price_data.items()
+        ]).set_index('symbol')
 
         # Generate signals
         signals = self.trading_agent.generate_signals(
-            data=mock_data,
+            data=market_data,
             current_positions={},
             portfolio_value=1000000
         )
@@ -245,17 +266,35 @@ class DailyScanPipeline:
         """Track detected patterns for validation."""
         count = 0
 
+        # Fetch current prices for pattern tracking
+        import yfinance as yf
+        prices = {}
+        for opp in report.opportunities:
+            if opp.symbol not in prices:
+                try:
+                    yf_symbol = f"{opp.symbol}.NS"
+                    ticker = yf.Ticker(yf_symbol)
+                    hist = ticker.history(period='5d')
+                    if not hist.empty:
+                        prices[opp.symbol] = float(hist['Close'].iloc[-1])
+                except:
+                    prices[opp.symbol] = None
+
         for opp in report.opportunities:
             for pattern in opp.patterns:
-                # Track pattern with current price
-                # In production, would get actual detection price
+                # Get actual detection price from yfinance
+                detection_price = prices.get(opp.symbol)
+                if detection_price is None:
+                    logger.warning(f"  ⚠️  {opp.symbol}: No price for pattern tracking, skipping")
+                    continue
+
                 self.pattern_tracker.track_pattern(
                     symbol=opp.symbol,
                     pattern_type=pattern.type,
                     signal=pattern.signal,
                     confidence=pattern.confidence,
                     detection_date=date.today(),
-                    detection_price=150.0,  # Would be actual price
+                    detection_price=detection_price,
                     net_value=opp.net_value,
                     num_deals=opp.num_deals,
                     llm_recommendation=opp.llm_insights.recommendation if opp.llm_insights else None
