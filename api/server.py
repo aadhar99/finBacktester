@@ -14,7 +14,7 @@ Usage:
     gunicorn api.server:app --bind 0.0.0.0:8000
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import os
 import json
@@ -343,12 +343,20 @@ def debug_yfinance():
         }), 500
 
 
+@app.route('/dashboard')
+def dashboard():
+    """Serve the dashboard HTML page."""
+    dashboard_dir = Path(__file__).resolve().parent.parent / 'dashboard'
+    return send_from_directory(dashboard_dir, 'index.html')
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     debug = os.environ.get('FLASK_ENV') == 'development'
 
     print(f"🚀 Starting API server on port {port}")
     print(f"   Health check: http://localhost:{port}/health")
+    print(f"   Dashboard: http://localhost:{port}/dashboard")
     print(f"   API docs: See CLOUD_DEPLOYMENT_GUIDE.md")
 
     app.run(host='0.0.0.0', port=port, debug=debug)

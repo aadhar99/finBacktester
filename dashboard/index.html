@@ -305,7 +305,10 @@
     </div>
 
     <script>
-        const API_URL = 'https://api-server-production-fd67.up.railway.app';
+        // Auto-detect API URL based on current host
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:8000'
+            : window.location.origin;
 
         function formatCurrency(value) {
             return new Intl.NumberFormat('en-IN', {
